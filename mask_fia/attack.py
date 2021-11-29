@@ -32,9 +32,10 @@ def trans2mask(xs, width=224, height=224):
 
 def trans2inbreedings(masks):
     # inbreeding:由0-1023的数组成的列表
-    for i in range(masks[0]):
-        for j in range(masks[1]):
-            pass
+    for i in range(len(masks[0])):
+        num_str=''
+        for j in range(len(masks[1])):
+            num_str+=str(masks[i][j])
     inbreeding = []
     return inbreeding
 
