@@ -9,7 +9,7 @@ trans = transforms.Compose([
 MAX = 10000
 inf = -MAX
 suf = MAX
-
+CLUSTER = 10   # mask中每cluster个相邻的位置用一个数表示
 
 def trans2mask(xs, width=224, height=224):
     # param xs:种群所有个体，每个个体是一个用数字构成的mask
@@ -38,7 +38,7 @@ def trans2inbreedings(masks):
         num_str = ''
         for i in range(len(mask[0])):
             for j in range(len(mask[1])):
-                if len(num_str)==10 :
+                if len(num_str)==CLUSTER :
                     inbreeding.append(int(num_str,2))
                     num_str=''
                 num_str+=str(mask[i][j])
@@ -52,7 +52,7 @@ def predict_transfer_score(masks):
     scores = []
     return scores
 
-def predict_classes(xs, width, height, cluster, bounds):
+def predict_classes(xs, width, height, bounds):
     masks = trans2mask(xs,width,height)
     return predict_transfer_score(masks)
 
@@ -141,8 +141,8 @@ def region_produce(xs, width = 224, height = 224, alpha = 0.1):
     return trans2inbreedings(inbreeding),set2,set3
 
 def attack(maxiter = 40, popsize = 20, width = 224, height = 224):
-    cluster = 20 # mask中每cluster个相邻的位置用一个数表示
-    bounds = [(0, 1023)] * (int(width*height/cluster)) + [0, int(np.math.pow(2, width*height%cluster))-1]
+
+    bounds = [(0, 1048575)] * (int(width*height/CLUSTER)) + [0, int(np.math.pow(2, width*height%CLUSTER))-1]
     print('---------begin attack---------------')
     # Format the predict/callback functions for the differential evolution algorithm
     def predict_fn(xs):
