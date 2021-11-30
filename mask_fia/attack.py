@@ -32,8 +32,20 @@ def trans2mask(xs, width=224, height=224):
 
 def trans2inbreedings(masks):
     # inbreeding:由0-1023的数组成的列表
-    inbreeding = []
-    return inbreeding
+    inbreedings = []
+    for mask in masks:
+        inbreeding=[]
+        num_str = ''
+        for i in range(len(mask[0])):
+            for j in range(len(mask[1])):
+                if len(num_str)==10 :
+                    inbreeding.append(int(num_str,2))
+                    num_str=''
+                num_str+=str(mask[i][j])
+        if len(num_str)!=0:
+            inbreeding.append(int(num_str, 2))
+        inbreedings.append(inbreeding)
+    return inbreedings
 
 def predict_transfer_score(masks):
     # 每个个体的得分，通过每个mask单独作用到图像进行对抗攻击产生对抗样本在一组黑盒模型上的效果得分获得
