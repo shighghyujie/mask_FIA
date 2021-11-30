@@ -10,6 +10,8 @@ MAX = 10000
 inf = -MAX
 suf = MAX
 CLUSTER = 10   # mask中每cluster个相邻的位置用一个数表示
+WIDTH=224
+HEIGHT=224
 
 def trans2mask(xs, width=224, height=224):
     # param xs:种群所有个体，每个个体是一个用数字构成的mask
@@ -47,27 +49,128 @@ def trans2inbreedings(masks):
         inbreedings.append(inbreeding)
     return inbreedings
 
-def predict_transfer_score(masks):
+def predict_transfer_score(mask):
+    # 每个个体的得分，通过每个mask单独作用到图像进行对抗攻击产生对抗样本在一组黑盒模型上的效果得分获得
+    score=None  # TODO
+    return score
+
+def predict_n_transfer_score(masks):
     # 每个个体的得分，通过每个mask单独作用到图像进行对抗攻击产生对抗样本在一组黑盒模型上的效果得分获得
     scores = []
+    for mask in masks:
+        score=predict_transfer_score(mask)
+        scores.append(score)
     return scores
 
-def predict_classes(xs, width, height, bounds):
-    masks = trans2mask(xs,width,height)
-    return predict_transfer_score(masks)
+def predict_classes(xs, bounds):
+    masks = trans2mask(xs,WIDTH,HEIGHT)
+    return predict_n_transfer_score(masks)
 
 def attack_success():
     return True
 
-def bestdir_of_extent(msk):
-    return msk
+def mask_extent(mask):
+    # 对杂交mask进行四次扩展(上下,左右,上下左右,一圈),
+    # return: 4个扩展后的mask组成的masks
+    masks=[]
+    # 上下扩展
+    mask_temp = np.zeros((HEIGHT, WIDTH))
+    for i in range(HEIGHT):
+        for j in range(WIDTH):
+            if mask[i][j]==1:
+                mask_temp[i][j] = 1
+                if not i==0 and not i==HEIGHT-1:
+                    mask_temp[i - 1][j] = 1
+                    mask_temp[i + 1][j] = 1
+                elif i==0:
+                    mask_temp[i + 1][j] = 1
+                else:
+                    mask_temp[i - 1][j] = 1
+    masks.append(mask_temp)
+    # 左右扩展
+    mask_temp = np.zeros((HEIGHT, WIDTH))
+    for i in range(HEIGHT):
+        for j in range(WIDTH):
+            if mask[i][j] == 1:
+                mask_temp[i][j] = 1
+                if not j == 0 and not j == WIDTH - 1:
+                    mask_temp[i][j-1] = 1
+                    mask_temp[i][j+1] = 1
+                elif j == 0:
+                    mask_temp[i][j+1] = 1
+                else:
+                    mask_temp[i][j-1] = 1
+    masks.append(mask_temp)
+    # 上下左右扩展
+    mask_temp = np.zeros((HEIGHT, WIDTH))
+    for i in range(HEIGHT):
+        for j in range(WIDTH):
+            if mask[i][j] == 1:
+                mask_temp[i][j] = 1
+                if not j == 0 and not j == WIDTH - 1:
+                    mask_temp[i][j - 1] = 1
+                    mask_temp[i][j + 1] = 1
+                elif j == 0:
+                    mask_temp[i][j + 1] = 1
+                else:
+                    mask_temp[i][j - 1] = 1
 
-def region_produce(xs, width = 224, height = 224, alpha = 0.1):
+                if not i==0 and not i==HEIGHT-1:
+                    mask_temp[i - 1][j] = 1
+                    mask_temp[i + 1][j] = 1
+                elif i==0:
+                    mask_temp[i + 1][j] = 1
+                else:
+                    mask_temp[i - 1][j] = 1
+    masks.append(mask_temp)
+
+    # 一圈扩展
+    mask_temp = np.zeros((HEIGHT, WIDTH))
+    for i in range(HEIGHT):
+        for j in range(WIDTH):
+            if mask[i][j] == 1:
+                mask_temp[i][j] = 1
+                if not j == 0 and not j == WIDTH - 1:
+                    mask_temp[i][j - 1] = 1
+                    mask_temp[i][j + 1] = 1
+                elif j == 0:
+                    mask_temp[i][j + 1] = 1
+                else:
+                    mask_temp[i][j - 1] = 1
+
+                if not i == 0 and not i == HEIGHT - 1:
+                    mask_temp[i - 1][j] = 1
+                    mask_temp[i + 1][j] = 1
+                elif i == 0:
+                    mask_temp[i + 1][j] = 1
+                else:
+                    mask_temp[i - 1][j] = 1
+
+                if not i==0 and not j==0:
+                    mask_temp[i - 1][j - 1] = 1
+                if not i==HEIGHT-1 and not j== 0:
+                    mask_temp[i + 1][j - 1] = 1
+
+                if not i == 0 and not j == WIDTH-1:
+                    mask_temp[i - 1][j + 1] = 1
+
+                if not i == HEIGHT and not j == WIDTH-1:
+                    mask_temp[i + 1][j + 1] = 1
+    masks.append(mask_temp)
+    return masks
+def bestdir_of_extent(mask):
+
+    masks=mask_extent(mask)
+    socres=predict_n_transfer_score(masks)
+    extented_best_mask=masks[np.argmin(socres)]
+    return extented_best_mask
+
+def region_produce(xs, WIDTH,HEIGHT,alpha = 0.1):
     # 产生uP的后代，产生后代策略
     # param xs:
     # param alpha: 两个mask的交集的比例大于alpha时认为共性高
     
-    masks = trans2mask(xs,width,height)
+    masks = trans2mask(xs,WIDTH,HEIGHT)
     mskn = masks.shape[0]
     sim_table = np.zeros((mskn,mskn))
     for i in range(len(mskn)):
@@ -131,14 +234,14 @@ def region_produce(xs, width = 224, height = 224, alpha = 0.1):
         set3 = list(set3)
         set3 = set3[:mskn-len(set1)-len(set2)]
 
-    inbreeding = []
+    inbreeding_masks = []
     # set1杂交，扩展
     for (i,j) in set1:
-        msk = masks[i]*masks[j]
-        msk = bestdir_of_extent(msk)
-        inbreeding.append(msk)
+        mask = masks[i]*masks[j]
+        mask = bestdir_of_extent(mask)
+        inbreeding_masks.append(mask)
     # 将msk转为个体
-    return trans2inbreedings(inbreeding),set2,set3
+    return trans2inbreedings(inbreeding_masks),set2,set3
 
 def attack(maxiter = 40, popsize = 20, width = 224, height = 224):
 
